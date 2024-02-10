@@ -6,3 +6,5 @@ The goal of this program is to create a hard disk image and place our uefi os lo
         2- gnu-efi.
         3- a tutorial on youtube (Queso Fuego).
         
+## Helper sources
+- [CRC32 calculation](https://www.w3.org/TR/png/#D-CRCAppendix) : Blog conatins pseudo-code and C code explaining the implementation of CRC32.

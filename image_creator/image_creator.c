@@ -1,7 +1,7 @@
 #include "image_creator.h"
 
 char *result_name = "image.bin";
-uint32_t block_size = DEFAULT_BLOCK_SIZE;
+
 int main(void)
 {
     FILE *image = fopen(result_name, "wb+");
@@ -24,9 +24,9 @@ bool write_mbr(FILE *image)
         .boot_indicator = 0,
         .starting_chs = {0x00, 0x02, 0x00},
         .os_type = 0xee,
-        .ending_chs = {0xff, 0xff, 0xff},
+        .ending_chs = {0xff, 0xff, 0xff},//to verify
         .starting_lba = 0x1,
-        .size_in_lba = 0xffffffff};
+        .size_in_lba = 0x1fffff};
     mbr mbr_ = {
         .boot_code = {0},
         .signature = 0,
@@ -43,16 +43,18 @@ bool write_mbr(FILE *image)
     return true;
 }
 
-// bool write_gpt_primary_header(FILE* image){
-//     gpt_header gpth_ = {
-//         .signature = 0x5452415020494645, //8byte encoded of “EFI PART”
-//         .revision =  0x00010000, // revision 1.0
-//         .header_size = 92, // spec say it must >= 92 and < Logical block size
-//         .header_crc32 = 0xB0DFF252, // crc 32 of 92
-//         .reserved = 0,
-//         .my_lba = 1,
-//         .alternate_lba = 0, // the last lba for the backup header
-//         .first_usable_lba = 2,
-//         .last_usable_lba = 0, //last usabale lba
-//     }
-// }
+bool write_gpt_primary_header(FILE* image){
+    gpt_header gpth_ = {
+        .signature = 0x5452415020494645,
+        .revision = 0x00010000,
+        .header_size = HEADER_SIZE,
+        .header_crc32 = 0x0, //to calculate
+        .reserved = 0,
+        .my_lba = 1,
+        .alternate_lba = 0x1fffff,
+        .first_usable_lba =2,
+        .last_usable_lba = 0x1fffff -1,
+        .disk_guid = {0,0},//find out how to calculate
+        .partition_entry_lba = 
+    }
+}

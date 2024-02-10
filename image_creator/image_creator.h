@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #define DEFAULT_BLOCK_SIZE 512
+#define HEADER_SIZE 92
 typedef struct partition_record
 {
     uint8_t boot_indicator;
