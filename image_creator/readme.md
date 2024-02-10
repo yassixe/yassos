@@ -8,3 +8,4 @@ The goal of this program is to create a hard disk image and place our uefi os lo
         
 ## Helper sources
 - [CRC32 calculation](https://www.w3.org/TR/png/#D-CRCAppendix) : Blog conatins pseudo-code and C code explaining the implementation of CRC32.
+- [GUID calculation](https://www.rfc-editor.org/rfc/rfc4122) : GUIDs generation rfc4122 or also UEFI specs Appendix A.

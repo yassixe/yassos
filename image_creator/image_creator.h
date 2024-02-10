@@ -8,6 +8,7 @@
 #define HEADER_SIZE 92
 typedef struct partition_record
 {
+    
     uint8_t boot_indicator;
     uint8_t starting_chs[3];
     uint8_t os_type;
