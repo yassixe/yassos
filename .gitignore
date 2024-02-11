@@ -1,3 +1,4 @@
 image_creator/build/*
 image_creator/*.bin
+image_creator/*.img
 note.txt

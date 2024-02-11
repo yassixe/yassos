@@ -5,16 +5,18 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <time.h>
 #define DEFAULT_BLOCK_SIZE 512
 #define HEADER_SIZE 92
 
-enum {
-    image_size_bytes = (1<<20)*35,
+enum
+{
+    image_size_bytes = (1 << 20) * 35,
     block_size_bytes = (1 << 9),
     entry_size_bytes = (1 << 7),
-    entries_number   = (1 << 7),
-    start_esp_bytes  = (1<<20),
-    size_esp_bytes   = (1<<20)*32,
+    entries_number = (1 << 7),
+    start_esp_bytes = (1 << 20),
+    size_esp_bytes = (1 << 20) * 32,
     gpt_header_size_bytes = 92
 
 };
@@ -38,14 +40,15 @@ typedef struct mbr
     uint16_t end_signature;
 } __attribute__((packed)) mbr;
 
-typedef struct guid{
+typedef struct guid
+{
     uint32_t time_low;
     uint16_t time_mid;
     uint16_t time_high_version;
     uint8_t clock_seq_reserved;
     uint8_t clock_seq_low;
     uint8_t node[6];
-}__attribute__((packed)) guid;
+} __attribute__((packed)) guid;
 
 typedef struct gpt_header
 {
@@ -63,19 +66,19 @@ typedef struct gpt_header
     uint32_t number_of_partition_entries;
     uint32_t size_of_partition_entries;
     uint32_t partition_entry_crc32;
-    uint8_t end[DEFAULT_BLOCK_SIZE-HEADER_SIZE];
+    uint8_t end[DEFAULT_BLOCK_SIZE - HEADER_SIZE];
 } __attribute__((packed)) gpt_header;
 
-
-typedef struct gpt_partition_entry{
+typedef struct gpt_partition_entry
+{
     guid type_guid;
     guid unique_guid;
     uint64_t starting_lba;
     uint64_t ending_lba;
     uint64_t attributes;
     uint8_t name[72];
-}__attribute__((packed)) gpt_partition_entry;
+} __attribute__((packed)) gpt_partition_entry;
 
 bool write_mbr(FILE *image);
-bool write_gpt_header(FILE* image);
+bool write_gpt_header(FILE *image);
 #endif
