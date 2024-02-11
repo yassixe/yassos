@@ -1,7 +1,55 @@
 #include "image_creator.h"
 
-char *result_name = "image.bin";
+char *result_name = "image.img";
 
+
+/* Table of CRCs of all 8-bit messages. */
+uint32_t crc_table[256];
+
+/* Flag: has the table been computed? Initially false. */
+int crc_table_computed = 0;
+
+/* Make the table for a fast CRC. */
+void make_crc_table(void)
+{
+  uint32_t c;
+  int n, k;
+
+  for (n = 0; n < 256; n++) {
+    c = (uint32_t) n;
+    for (k = 0; k < 8; k++) {
+      if (c & 1)
+        c = 0xedb88320L ^ (c >> 1);
+      else
+        c = c >> 1;
+    }
+    crc_table[n] = c;
+  }
+  crc_table_computed = 1;
+}
+/* Update a running CRC with the bytes buf[0..len-1]--the CRC
+   should be initialized to all 1's, and the transmitted value
+   is the 1's complement of the final running CRC (see the
+   crc() routine below). */
+
+uint32_t update_crc(uint32_t crc, unsigned char *buf,int len)
+{
+  uint32_t c = crc;
+  int n;
+
+  if (!crc_table_computed)
+    make_crc_table();
+  for (n = 0; n < len; n++) {
+    c = crc_table[(c ^ buf[n]) & 0xff] ^ (c >> 8);
+  }
+  return c;
+}
+
+/* Return the CRC of the bytes buf[0..len-1]. */
+uint32_t crc(unsigned char *buf, int len)
+{
+  return update_crc(0xffffffffL, buf, len) ^ 0xffffffffL;
+}
 
 void test(){
     for (int i=0;i<10;i++){
@@ -19,10 +67,15 @@ int main(void)
         printf("error creating image\n");
         return 1;
     }
-    if ((True = write_mbr(image)) == false)
+    if ((True = write_mbr(image)) == false){
+        printf("error mbr writing\n");
         return 1;
+    }
 
-    write_gpt_header(image);
+    if ((True = write_gpt_header(image)) == false){
+        printf("error gpt writing\n");
+        return 1;
+    }
     return 0;
 }
 
@@ -48,28 +101,26 @@ bool write_mbr(FILE *image)
         .end_signature = 0xAA55};
     size_t w_size = fwrite(&mbr_, 1, sizeof(mbr_), image);
     if(w_size != block_size_bytes) return 0;
-    test();
     return true;
 }
 
 guid new_guid(){
     guid result;
+    uint8_t* r_microsoft = (uint8_t*)&result;
     for (uint8_t i = 0; i < 16; i++)
     {
-        result.r_microsoft[i]=rand()%256;
+        r_microsoft[i]=rand()%256;
     }
     //set the variant and the version variant: 
     // 1     1     0    Reserved, Microsoft Corporation backward
     //                  compatibility
-    result.r_microsoft[8]|= (1<<7);
-    result.r_microsoft[8]|= (1<<6);
-    result.r_microsoft[8]&= ~(1<<5);
-    result.r_microsoft[6]&= 0b00011111;
-    result.r_microsoft[6]|= (1<<4);
+    r_microsoft[8]|= (1<<7);
+    r_microsoft[8]|= (1<<6);
+    r_microsoft[8]&= ~(1<<5);
+    r_microsoft[6]&= 0b00011111;
+    r_microsoft[6]|= (1<<4);
 
-    return result;
-
-     
+    return result;     
 }
 
 
@@ -79,6 +130,16 @@ guid new_guid(){
 
 
 bool write_gpt_header(FILE* image){
+    guid efi_guidtype ={
+        .time_low= 0xC12A7328,
+        .time_mid = 0xF81F,
+        .time_high_version = 0x11D2,
+        .clock_seq_reserved = 0xBA,
+        .time_low = 0x4B,
+        .node ={0x00,0xA0,0xC9,0x3E,0xC9,0x3B}
+    };
+
+
     gpt_header gpth = {
         .signature =  0x5452415020494645,
         .revision = 0x00010000,
@@ -96,7 +157,57 @@ bool write_gpt_header(FILE* image){
         .partition_entry_crc32 = 0,
         .end = {0},
     };
+    gpt_header gpth_alt = {
+        .signature =  0x5452415020494645,
+        .revision = 0x00010000,
+        .header_size = gpt_header_size_bytes,
+        .header_crc32 = 0,
+        .reserved = 0,
+        .my_lba = (image_size_bytes/block_size_bytes)-1,
+        .alternate_lba = 1,
+        .first_usable_lba = 1 + (entries_number*entry_size_bytes)/(block_size_bytes) + 1,
+        .last_usable_lba = (image_size_bytes/block_size_bytes)-1 -(entries_number*entry_size_bytes)/(block_size_bytes) -1,
+        .disk_guid = new_guid(),
+        .partition_entry_lba = 2,
+        .number_of_partition_entries = entries_number,
+        .size_of_partition_entries = entry_size_bytes,
+        .partition_entry_crc32 = 0,
+        .end = {0},
+    };
+    gpt_partition_entry entries_table[128]={
+        {.type_guid=efi_guidtype,
+        .unique_guid=new_guid(),
+        .starting_lba = 2048,
+        .ending_lba = 2048 + (size_esp_bytes/block_size_bytes)-1,
+        .attributes = 0,
+        .name = "efi partition"
+        },
+        {
+        .type_guid=efi_guidtype,
+        .unique_guid=new_guid(),
+        .starting_lba = 2048 + (size_esp_bytes/block_size_bytes),
+        .ending_lba = 4096 + (size_esp_bytes/block_size_bytes) - 1,
+        .attributes = 0,
+        .name = "data partition"
+        },
+    };
+    gpth.partition_entry_crc32 = crc((unsigned char *)entries_table,entries_number*entry_size_bytes);
+    gpth_alt.partition_entry_crc32= gpth.partition_entry_crc32;
+    gpth.header_crc32=crc((unsigned char *)&gpth,gpt_header_size_bytes);
+    gpth_alt.header_crc32=crc((unsigned char *)&gpth_alt,gpt_header_size_bytes);
+
+    size_t w_size = fwrite(&gpth,1,sizeof(gpth),image);
+    if(w_size != block_size_bytes) return false;
+    w_size = fwrite(entries_table,1,sizeof(entries_table),image);
+    if(w_size != 128*128) return false;
+
+    uint64_t last_usable_lba = gpth.last_usable_lba;
+    uint64_t seek_position = (last_usable_lba+1)*block_size_bytes;
+    fseek(image,(long)seek_position,0);
+    w_size= fwrite(entries_table,1,sizeof(entries_table),image);
+    w_size= fwrite(&gpth_alt ,1,sizeof(gpth_alt),image);;
     
+
     
     return true;
 }

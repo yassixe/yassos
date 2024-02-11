@@ -39,7 +39,12 @@ typedef struct mbr
 } __attribute__((packed)) mbr;
 
 typedef struct guid{
-    uint8_t r_microsoft[16];
+    uint32_t time_low;
+    uint16_t time_mid;
+    uint16_t time_high_version;
+    uint8_t clock_seq_reserved;
+    uint8_t clock_seq_low;
+    uint8_t node[6];
 }__attribute__((packed)) guid;
 
 typedef struct gpt_header
