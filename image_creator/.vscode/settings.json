@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "*.asm": "gas",
+        "*.s": "asm-intel-x86-generic",
+        "*.c": "c",
+        "image_creator.h": "c"
+    }
+}
