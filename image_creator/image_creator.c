@@ -3,6 +3,11 @@
 char *result_name = "image.bin";
 
 
+void test(){
+    for (int i=0;i<10;i++){
+        printf("%d\n",rand()%256);
+    }
+}
 
 int main(void)
 {
@@ -43,15 +48,30 @@ bool write_mbr(FILE *image)
         .end_signature = 0xAA55};
     size_t w_size = fwrite(&mbr_, 1, sizeof(mbr_), image);
     if(w_size != block_size_bytes) return 0;
+    test();
     return true;
 }
 
 guid new_guid(){
-    guid a;
-    a.i[0]=1;
-    a.i[1]=1;
-    return a;
+    guid result;
+    for (uint8_t i = 0; i < 16; i++)
+    {
+        result.r_microsoft[i]=rand()%256;
+    }
+    //set the variant and the version variant: 
+    // 1     1     0    Reserved, Microsoft Corporation backward
+    //                  compatibility
+    result.r_microsoft[8]|= (1<<7);
+    result.r_microsoft[8]|= (1<<6);
+    result.r_microsoft[8]&= ~(1<<5);
+    result.r_microsoft[6]&= 0b00011111;
+    result.r_microsoft[6]|= (1<<4);
+
+    return result;
+
+     
 }
+
 
 
 

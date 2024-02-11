@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <assert.h>
+#include <stdlib.h>
 #define DEFAULT_BLOCK_SIZE 512
 #define HEADER_SIZE 92
 
@@ -38,7 +39,7 @@ typedef struct mbr
 } __attribute__((packed)) mbr;
 
 typedef struct guid{
-    uint64_t i[2];
+    uint8_t r_microsoft[16];
 }__attribute__((packed)) guid;
 
 typedef struct gpt_header
