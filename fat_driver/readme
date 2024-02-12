@@ -1,0 +1,15 @@
+## note:
+    i implemented the disk image creator that create gpt partition.
+    and devide the image on two partition, the boot partion and the
+    data patition.
+
+
+    now i need the make to store files in this partitions (potentially the OS) using a file system.
+
+
+    i chose fat32 because it is simple and mentionned in the uefi spec.
+
+
+    for that this in this directory i will implement a driver to read file
+    from the a partition in the disck containig the fat32 system partition.
+     
