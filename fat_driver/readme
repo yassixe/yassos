@@ -12,4 +12,9 @@
 
     for that this in this directory i will implement a driver to read file
     from the a partition in the disck containig the fat32 system partition.
-     
+
+
+    mkfs.fat -F 12 -n "NBOS" main_floppy.img
+    
+    
+    good command. 

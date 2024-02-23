@@ -85,6 +85,31 @@ int main(void)
     return 0;
 }
 
+bool write_vbr(FILE *image){
+    vbr vbr_ = {
+        .start_bytes = {0xeb,0x3c,0x90},
+        .eom =  {"YASS  0S"},
+        .bytes_per_sector = block_size_bytes,
+        .sectors_per_cluster = 1,
+        .reserved_sector = 0,//to check
+        .number_of_fats = 2,
+        .root_directory_entries= 0, //need to be corrected
+        .number_of_sectors =  size_esp_bytes/block_size_bytes,
+        .media_descriptior = 0xF0,//changeable
+        .number_of_sector_per_fat = 0, //check
+        .number_of_sector_per_track = 0, //check
+        .number_of_heads = 0,
+        .number_of_headen_blocks =0,//check
+        .unkown = 0,
+        .drive_number = 0,
+        .flags = 0,
+        .signature = 0,
+        .volume_id = 0,
+        
+
+    }
+}
+
 bool write_mbr(FILE *image)
 {
     partition_record pr_ = {
