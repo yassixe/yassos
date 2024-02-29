@@ -1,14 +1,14 @@
 #include "image_creator.h"
 
-char *result_name = "image.img";
+char *result_name = "image";
 
-/* Table of CRCs of all 8-bit messages. */
+
 uint32_t crc_table[256];
 
-/* Flag: has the table been computed? Initially false. */
+
 int crc_table_computed = 0;
 
-/* Make the table for a fast CRC. */
+
 void make_crc_table(void)
 {
     uint32_t c;
@@ -28,10 +28,7 @@ void make_crc_table(void)
     }
     crc_table_computed = 1;
 }
-/* Update a running CRC with the bytes buf[0..len-1]--the CRC
-   should be initialized to all 1's, and the transmitted value
-   is the 1's complement of the final running CRC (see the
-   crc() routine below). */
+
 
 uint32_t update_crc(uint32_t crc, unsigned char *buf, int len)
 {
@@ -85,30 +82,7 @@ int main(void)
     return 0;
 }
 
-bool write_vbr(FILE *image){
-    vbr vbr_ = {
-        .start_bytes = {0xeb,0x3c,0x90},
-        .eom =  {"YASS  0S"},
-        .bytes_per_sector = block_size_bytes,
-        .sectors_per_cluster = 1,
-        .reserved_sector = 0,//to check
-        .number_of_fats = 2,
-        .root_directory_entries= 0, //need to be corrected
-        .number_of_sectors =  size_esp_bytes/block_size_bytes,
-        .media_descriptior = 0xF0,//changeable
-        .number_of_sector_per_fat = 0, //check
-        .number_of_sector_per_track = 0, //check
-        .number_of_heads = 0,
-        .number_of_headen_blocks =0,//check
-        .unkown = 0,
-        .drive_number = 0,
-        .flags = 0,
-        .signature = 0,
-        .volume_id = 0,
-        
 
-    }
-}
 
 bool write_mbr(FILE *image)
 {
@@ -144,9 +118,7 @@ guid new_guid()
     {
         r_microsoft[i] = rand() % 256;
     }
-    // set the variant and the version variant:
-    //  1     1     0    Reserved, Microsoft Corporation backward
-    //                   compatibility
+
     r_microsoft[8] |= (1 << 7);
     r_microsoft[8] |= (1 << 6);
     r_microsoft[8] &= ~(1 << 5);
@@ -231,7 +203,10 @@ bool write_gpt_header(FILE *image)
     fseek(image, (long)seek_position, 0);
     w_size = fwrite(entries_table, 1, sizeof(entries_table), image);
     w_size = fwrite(&gpth_alt, 1, sizeof(gpth_alt), image);
-    ;
-
+    
     return true;
 }
+//this code allows me to get a gpt partitions
+// the first one of 32 mega. esp : efi system partition it is bootable
+// the second one data partiton for now not used.
+// i need to get file system there. the fat32.
