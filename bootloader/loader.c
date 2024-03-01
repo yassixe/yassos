@@ -15,7 +15,6 @@ EFI_STATUS get_memory(){
   UINT8 memory_buffer[buffer_size];
   uefi_call_wrapper(BS->GetMemoryMap,5,&buffer_size,memory_buffer,&map_key,&desciptor_size,descriptor_version);
   Print(L"size_buffer:%d\ndescriptor_size:%d\n",buffer_size,desciptor_size);
-  LibOpenRoot()
   return EFI_SUCCESS;
 }
 

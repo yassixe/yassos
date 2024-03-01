@@ -1,3 +1,6 @@
+#include "common.h"
+
+
 #define VIDEO_MEMORY 0xb8000
 
 
@@ -21,6 +24,9 @@ typedef unsigned char  uint8_t;
 #define FLAGS_BD            1<<6
 #define FLAGS_G             1<<7
 
+#define KERNEL_CS           0x8
+
+
 typedef struct gdt_entry{
     uint16_t limit_1;
     uint16_t base_1;
@@ -42,10 +48,20 @@ typedef struct idt_entry{
     uint16_t segment_selector;
     uint8_t reserved;
     uint8_t flags;
-    uint8_t offset_2;
+    uint16_t offset_2;
 }__attribute__((packed)) idt_entry;
 
+typedef struct idt_desciptor{
+    uint16_t size;
+    idt_entry* ptr; 
+}__attribute__((packed)) idt_desciptor;
 
+typedef struct registers{
+    // TODO : not the same regs are pushed when there is PL change
+    uint32_t edi,esi,ebp,reserved,ebx,edx,ecx,eax,interrupt_number,error_code,eip;
+    uint8_t  cs,reserved1;
+    uint32_t eflags;
+}__attribute__((packed)) registers;
 
 //---------------------------------------------
 //      Gloabal variables    
@@ -54,12 +70,17 @@ uint32_t pos_x = 0;
 uint32_t pos_y = 0;
 gdt_entry gdt[5] __attribute__((aligned(8)))={0};
 gdt_desciptor gdt_d;
+idt_entry idt[256] __attribute__((aligned(8)))={0};
+idt_desciptor idt_d;
+void div_0(void);
 
 //---------------------------------------------
 //      functions   
 //---------------------------------------------
 void halt(void);
 void load_gdt(gdt_desciptor* gdt_d);
+void load_idt(idt_desciptor* idt_d);
+void handler(registers* regs);
 
 void write_char(char c){
     if(c == '\n'){
@@ -96,6 +117,15 @@ void clear_screen(){
 }
 
 
+
+void set_idt_entry(uint8_t index,uint16_t selector,uint32_t offset){
+    idt[index].flags = 0b10001110;
+    idt[index].offset_1 = (uint16_t)offset;
+    idt[index].offset_2 = (uint16_t)(offset >> 16);
+    idt[index].reserved = 0;
+    idt[index].segment_selector = selector;
+}
+
 void initialize_pic(){
 
 }
@@ -109,12 +139,11 @@ void set_gdt(){
     gdt[0].flags_limit=0;
     gdt[0].base_3=0;
     
-    //kernel data and code segments:
     //kernel code segment
     gdt[1].limit_1= 0xffff;
     gdt[1].base_1=0;
     gdt[1].base_2=0;
-    gdt[1].access_bytes= ACCESS_BYTE_P | ACCESS_BYTE_S | ACCESS_BYTE_RW ;
+    gdt[1].access_bytes= ACCESS_BYTE_P | ACCESS_BYTE_S | ACCESS_BYTE_E | ACCESS_BYTE_RW ;
     gdt[1].flags_limit=0b00001111 | (FLAGS_G | FLAGS_BD);
     gdt[1].base_3=0;
 
@@ -123,9 +152,10 @@ void set_gdt(){
     gdt[2].limit_1= 0xffff;
     gdt[2].base_1=0;
     gdt[2].base_2=0;
-    gdt[2].access_bytes= ACCESS_BYTE_P | ACCESS_BYTE_S | ACCESS_BYTE_E | ACCESS_BYTE_RW ;
+    gdt[2].access_bytes= ACCESS_BYTE_P | ACCESS_BYTE_S | ACCESS_BYTE_RW ;
     gdt[2].flags_limit=0b00001111 | (FLAGS_G | FLAGS_BD);
     gdt[2].base_3=0;
+
 
     //TODO : add the user entries, and TSS if needed in the user processes scheddulling
     //TODO : verify that the gdt is 8 byte-alaigned (the gnu attribute __atribute__((aligned(8)))
@@ -136,17 +166,36 @@ void set_gdt(){
 }
 
 void set_idt(){
-
+    set_idt_entries;
+    idt_d.size = sizeof(idt_entry)*256;
+    idt_d.ptr = idt; 
+    load_idt(&(idt_d));
 }
-
+void handler(registers* reg){
+    if(reg->interrupt_number < 32){
+        print_s("exceptions\n");
+        while(1) halt();
+    }
+    else if(reg->interrupt_number < 48){
+        print_s("irq\n");
+    }
+}
 
 void kernel_main(){
     clear_screen();
     print_s("hello from kernel!\n");
-    print_s("hi i am working");
+    print_s("hi i am working\n");
     set_gdt();
+    // TODO : initialize the PIC device
+    set_idt();
+    div_0();
     print_s("hi i am working");
+    div_0();
     while(1){
         halt();
     }
 }
+
+
+
+//note : the DPL in the kernel segments are set to 0, so only the kernel can execute code in those segments.
