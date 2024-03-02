@@ -47,6 +47,11 @@ halt:
     hlt
     ret
 
+.global sti
+sti:
+    sti
+    ret
+
 .global load_gdt
 load_gdt:
     push %ebp
@@ -133,6 +138,26 @@ with_error_isr 29
 with_error_isr 30
 no_error_isr 31
 
+
+no_error_isr 32
+no_error_isr 33
+no_error_isr 34
+no_error_isr 35
+no_error_isr 36
+no_error_isr 37
+no_error_isr 38
+no_error_isr 39
+no_error_isr 40
+no_error_isr 41
+no_error_isr 42
+no_error_isr 43
+no_error_isr 44
+no_error_isr 45
+no_error_isr 46
+no_error_isr 47
+
+
+
 .global common_isr
 common_isr:
     pusha
@@ -191,11 +216,47 @@ load_tss:
 
 .global hi
 hi:
-    call div_0
     jmp hi
 
 .global user_function
 user_function:
     call hi
     ret
+
+
+// outb(uint16_t port, uint8_t data);
+.global outb
+outb:
+    //eax caller saved
+    push %ebp
+    mov %esp,%ebp
+
+    xor %eax,%eax
+    xor %edx,%edx
+    movb 12(%ebp),%al
+    movw 8(%ebp),%dx
+    outb %al,%dx
+
+    mov %ebp,%esp
+    pop %ebp
+    ret
+
+
+//inb(uint16_t port)
+.global inb
+inb:
+    //eax caller saved
+    push %ebp
+    mov %esp,%ebp
+
+    xor %eax,%eax
+    xor %edx,%edx
+    movw 8(%ebp),%dx
+    inb  %dx,%al
+
+    mov %ebp,%esp
+    pop %ebp
+    ret
+
+
 

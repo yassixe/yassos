@@ -1,7 +1,11 @@
 #ifndef __COMMON__H
 #define __COMMON__H
 
-#define DECL_ISR(i) void isr_##i(void);
+#define DECL_ISR(i)  void isr_##i(void);
+typedef unsigned short uint16_t;
+typedef unsigned       uint32_t;
+typedef unsigned char  uint8_t;
+void print_s(char* s);
 
 DECL_ISR(0);
 DECL_ISR(1);
@@ -36,6 +40,25 @@ DECL_ISR(29);
 DECL_ISR(30);
 DECL_ISR(31);
 
+DECL_ISR(32);
+DECL_ISR(33);
+DECL_ISR(34);
+DECL_ISR(35);
+DECL_ISR(36);
+DECL_ISR(37);
+DECL_ISR(38);
+DECL_ISR(39);
+DECL_ISR(40);
+DECL_ISR(41);
+DECL_ISR(42);
+DECL_ISR(43);
+DECL_ISR(44);
+DECL_ISR(45);
+DECL_ISR(46);
+DECL_ISR(47);
+
+
+
 #define set_idt_entries \
                         set_idt_entry(0,KERNEL_CS,(uint32_t)isr_0);\
                         set_idt_entry(1,KERNEL_CS,(uint32_t)isr_1);\
@@ -68,8 +91,22 @@ DECL_ISR(31);
                         set_idt_entry(29,KERNEL_CS,(uint32_t)isr_29);\
                         set_idt_entry(30,KERNEL_CS,(uint32_t)isr_30);\
                         set_idt_entry(31,KERNEL_CS,(uint32_t)isr_31);\
-
-
+                        set_idt_entry(32,KERNEL_CS,(uint32_t)isr_32);\
+                        set_idt_entry(33,KERNEL_CS,(uint32_t)isr_33);\
+                        set_idt_entry(34,KERNEL_CS,(uint32_t)isr_34);\
+                        set_idt_entry(35,KERNEL_CS,(uint32_t)isr_35);\
+                        set_idt_entry(36,KERNEL_CS,(uint32_t)isr_36);\
+                        set_idt_entry(37,KERNEL_CS,(uint32_t)isr_37);\
+                        set_idt_entry(38,KERNEL_CS,(uint32_t)isr_38);\
+                        set_idt_entry(39,KERNEL_CS,(uint32_t)isr_39);\
+                        set_idt_entry(40,KERNEL_CS,(uint32_t)isr_40);\
+                        set_idt_entry(41,KERNEL_CS,(uint32_t)isr_41);\
+                        set_idt_entry(42,KERNEL_CS,(uint32_t)isr_42);\
+                        set_idt_entry(43,KERNEL_CS,(uint32_t)isr_43);\
+                        set_idt_entry(44,KERNEL_CS,(uint32_t)isr_44);\
+                        set_idt_entry(45,KERNEL_CS,(uint32_t)isr_45);\
+                        set_idt_entry(46,KERNEL_CS,(uint32_t)isr_46);\
+                        set_idt_entry(47,KERNEL_CS,(uint32_t)isr_47);\
 
 
 
