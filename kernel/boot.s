@@ -7,7 +7,8 @@
 //kernel segments
 .set KERNEL_CS, 0x8
 .set KERNEL_DS, 0x10
-
+.set USER_CS,   0x18 | 3
+.set USER_DS,   0x20 | 3
 
 .section .multiboot
     .align 4
@@ -21,6 +22,10 @@
     stack_bottom:
     .skip 16384 # 16 KiB
     stack_top:
+    .align 16
+    user_stack_bottom:
+    .skip 16384 # 16 KiB
+    user_stack_top:
 
 //setup the stack.
 .section .text
@@ -133,8 +138,11 @@ common_isr:
     pusha
     push %esp
     call handler
-    pop %esp
+    //to remove the esp pushed(pointer the structure)
+    add $4,%esp
     popa
+    //remove error code, and the interrupt number.
+    add $8,%esp
     iret
 
 // eax,edx,ecx are caller seved registers in c_decl convention 
@@ -150,4 +158,44 @@ div_0:
     mov %ebp,%esp
     pop %ebp
     ret
-    
+
+
+.global get_to_user_space
+get_to_user_space:
+    //save the kernel stack pointer to the tss.
+    movl $tss,%eax
+    movl %esp,4(%eax)
+
+    mov $USER_DS,%eax
+    mov  %eax,%ds
+    mov  %eax,%es
+    mov  %eax,%gs
+    push %eax
+    push $user_stack_top
+    pushf
+    push $USER_CS
+    push $user_function
+    iret
+
+
+
+//tss is the variable name in c and is can be used a pointer to the structer in assembly
+//new stuff!!
+.global load_tss
+load_tss:
+    push %eax
+    mov $0x28,%eax
+    ltr %ax
+    pop %eax
+    ret
+
+.global hi
+hi:
+    call div_0
+    jmp hi
+
+.global user_function
+user_function:
+    call hi
+    ret
+
