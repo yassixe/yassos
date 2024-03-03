@@ -5,7 +5,11 @@
 typedef unsigned short uint16_t;
 typedef unsigned       uint32_t;
 typedef unsigned char  uint8_t;
+
 void print_s(char* s);
+void __init__();
+void allocate();
+
 
 DECL_ISR(0);
 DECL_ISR(1);

@@ -332,9 +332,10 @@ void kernel_main(){
     set_idt();
     initialize_pic();
     sti();
-    get_to_user_space();
+    //get_to_user_space();
     //div_0();
-  
+    __init__();
+    allocate();
     while(1){
         halt();
     }
