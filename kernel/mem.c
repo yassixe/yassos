@@ -41,10 +41,14 @@ uint8_t* bitmap[bitmap_size]__attribute__((aligned(8)))={0};
 //--------------------------------------------------------------------------------------------------------
 //                      i think doing it with linked list would be much better
 #define NULL (void*)0
-
+#define RDM 0xA7
 #define true  1
 #define false 0
 #define MEGA  (1 << 20)
+
+uint8_t hash(void* ptr,uint32_t size){
+    return (uint8_t)((uint32_t)ptr ^ (size/2 + RDM));
+}
 
 
 typedef struct mem_slice{
@@ -52,6 +56,7 @@ typedef struct mem_slice{
     struct mem_slice* next;
     uint32_t size;
     uint8_t  is_free;
+    uint8_t hash;
 }__attribute__((packed))mem_slice;
 
 mem_slice* memory_head;
@@ -62,10 +67,12 @@ void __init__(){
     memory_head->size = end - start;
     memory_head->prev=NULL;
     memory_head->next=NULL;
+    memory_head->hash=hash(memory_head,memory_head->size);
 }
 
 
 void* k_malloc(uint32_t size_in_bytes){
+    if(size_in_bytes == 0) return 0;
     uint32_t size = size_in_bytes + sizeof(mem_slice);
     mem_slice* tmp = memory_head;
     while(tmp->is_free == false || tmp->size < size){
@@ -97,18 +104,20 @@ void* k_malloc(uint32_t size_in_bytes){
         p_next->prev = next;
     }
     //im not sure if this correct
-    return (void*)tmp + 13;
+    tmp->hash = hash(tmp,tmp->size);
+    return (void*)tmp + 14;
 }
 
 
 
 
-void free(void* slice){
+void k_free(void* ptr){
     //add asserts to make sure paramss are ok.
     //assert que elle est vraiement not free ...
-
+    mem_slice* f_slice = (mem_slice*)((uint32_t)ptr-14);
+    assert(f_slice->hash == hash(f_slice,f_slice->size));
+    assert(f_slice->is_free == false);
     uint8_t state_next,state_prev = 0;
-    mem_slice* f_slice = slice;
     mem_slice* next=f_slice->next;
     mem_slice* prev=f_slice->prev;
     uint32_t size = f_slice->size;
@@ -138,10 +147,65 @@ void free(void* slice){
 
 
 void allocate(){
-    mem_slice* tab[10]={0};
+    void* tab[10]={0};
     for(int i=0;i<10;i++){
         tab[i]=k_malloc(7);
     };
-    (void)tab;
+    for(int i=0;i<10;i++){
+        k_free(tab[i]);
+    };
     while(1);
 }
+
+
+void allocator_test_0(){
+    assert(k_malloc(0)==NULL);
+}
+
+void allocator_test_1(){
+    void* ptr = k_malloc(1);
+    assert(ptr != NULL);
+    k_free(ptr);
+}
+void allocator_test_2(){
+    void* ptr = k_malloc(65);
+    assert(ptr != NULL);
+    k_free(ptr);
+}
+void allocator_test_3(){
+    void* ptr = k_malloc(4096);
+    assert(ptr != NULL);
+    k_free(ptr);
+}
+
+void allocator_test_4(){
+    void* tab[100]={0};
+    for(int i=0;i<100;i++){
+        tab[i]=k_malloc(64);
+        assert(tab[i] != NULL);
+    }
+    for(int i=0;i<100;i++){
+        k_free(tab[i]);
+    }
+}
+
+void allocator_test_5(){
+    void* tab[100]={0};
+    for(int i=0;i<100;i++){
+        tab[i]=k_malloc(118);
+        assert(tab[i] != NULL);
+    }
+    for(int i=0;i<100;i++){
+        k_free(tab[i]);
+    }
+}
+
+void memory_allocator_tests(){
+    allocator_test_0();
+    allocator_test_1();
+    allocator_test_2();
+    allocator_test_3();
+    allocator_test_4();
+    allocator_test_5();
+}
+//todo added the hash type shit and need to figure out how to update it.

@@ -1,5 +1,5 @@
 #include "common.h"
-
+#include <stdarg.h>
 
 #define VIDEO_MEMORY 0xb8000
 
@@ -32,6 +32,8 @@
 #define SLAVE_PIC_DATA_PORT         0xA1
 #define PIC_EOI_COMMAND             0x20 //end of interrupt
 #define PIC_INIT_COMMAND            0x11
+#define ASCII_0                     '0'
+#define ASCII_9                     (ASCII_0 + 9)
 //a tipical irq handler
 // void handler(){
 //     do stuff...;
@@ -134,6 +136,7 @@ void write_char(char c){
         pos_y++;
         return;
     }
+    if(c == '\0') return;
     uint16_t* pos = (uint16_t*)(VIDEO_MEMORY + 2*(80*pos_y + pos_x));
     *(pos) = (uint16_t) c;
     *((uint8_t*)pos+1)=0b00001111; 
@@ -322,6 +325,70 @@ void handler(registers* reg){
     }
 }
 
+char* BASE10_NUMBERS = "0123456789";
+char* BASE16_NUMBERS = "0123456789abcdef";
+void print_atoi_10(int num){
+    char num_tab[10]={0};
+    int i=9;
+    int r=0;
+    do
+    {
+        r = num%10;
+        num_tab[--i] = BASE10_NUMBERS[r];
+
+    } while ((num=num/10) != 0);
+    print_s((char*)(num_tab+i));
+}
+void print_atoi_16(int num){
+    char num_tab[10]={0};
+    int i=9;
+    int r=0;
+    do
+    {
+        r = num%16;
+        num_tab[--i] = BASE16_NUMBERS[r];
+
+    } while ((num=num/16) != 0);
+    print_s((char*)(num_tab+i));
+}
+
+void k_print(char* s,...){
+    va_list params;
+    va_start(params,s);
+    while(*s != '\0'){
+        if(*s == '%'){
+            s++;
+            switch (*s)
+            {
+            case 's':
+            {
+                s++;
+                char* a = va_arg(params, char*);
+                print_s(a);
+                break;
+            }  
+            case 'd':
+            {
+                s++;
+                int num = va_arg(params,int);
+                print_atoi_10(num);
+            } 
+            case 'x':
+            {
+                s++;
+                int num = va_arg(params,int);
+                print_atoi_16(num);
+            }          
+            default:
+                break;
+            }
+        }
+        else write_char(*(s++));
+    }
+    va_end(params);
+    return;
+}
+
 uint32_t j = 0;
 void kernel_main(){
     clear_screen();
@@ -329,15 +396,15 @@ void kernel_main(){
     print_s("hi i am working\n");
     set_gdt();
     // TODO : initialize the PIC device
-    set_idt();
+    set_idt();   
     initialize_pic();
-    sti();
+    //sti();
     //get_to_user_space();
     //div_0();
     __init__();
-    allocate();
+    memory_allocator_tests();
     while(1){
-        halt();
+        halt(); 
     }
 }
 
@@ -365,3 +432,13 @@ void kernel_main(){
 //
 //      for better testing i need to implement a better print_s.
 //      i should work with timer interrupts.(so i need to initialize the PIC device).
+
+
+//scheddyler ideas:
+//every process has a way to store kernel stack pointer in its structure.
+//when a process get interupted its get it goes to kernel mode with the esp from the tss.
+//then it got to scheduller where:
+//current regs are stored in the process struct. the kernel esp is kept inside the process struct too.
+//the new process get the regs from its struct and set the kernel esp too(i think from its struct).
+//then do the ret and jump back to after the scheduller.
+//do get to the interrupt handler where it should send end of interrupt and do the iret.
