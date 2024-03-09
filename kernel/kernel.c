@@ -392,8 +392,6 @@ void k_print(char* s,...){
 uint32_t j = 0;
 void kernel_main(){
     clear_screen();
-    print_s("hello from kernel!\n");
-    print_s("hi i am working\n");
     set_gdt();
     // TODO : initialize the PIC device
     set_idt();   

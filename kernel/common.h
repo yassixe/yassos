@@ -1,6 +1,8 @@
 #ifndef __COMMON__H
 #define __COMMON__H
 
+#include <stdarg.h>
+
 #define DECL_ISR(i)  void isr_##i(void);
 
                     
@@ -8,14 +10,17 @@ typedef unsigned short uint16_t;
 typedef unsigned       uint32_t;
 typedef unsigned char  uint8_t;
 
+
+void clear_screen();
 void print_s(char* s);
 void __init__();
 void allocate();
 void memory_allocator_tests();
+void k_print(char* s,...);
 #define assert(expr) \
                     do\
                     {\
-                        if(!(expr)) print_s("error, assert condition not fullfilled");\
+                        if(!(expr)) print_s("error, assert condition not fullfilled\n");\
                     } while (0)
 
 
