@@ -25,7 +25,7 @@ extern uint32_t pos_y;
 enum
 {
     start = 16 * (1 << 20),
-    end = 48 * (1 << 20),
+    end = 17 * (1 << 20),
     bitmap_size = 2 * ((end - start) / (1 << 12)) / 8
 };
 
@@ -76,7 +76,7 @@ void *k_malloc(uint32_t size_in_bytes)
         return 0;
     uint32_t size = size_in_bytes + sizeof(mem_slice);
     mem_slice *tmp = memory_head;
-    while (!(tmp->is_free != false && (tmp->size >= (size + 15) || tmp->size == size)))
+    while (!((tmp->is_free == true) && (tmp->size > (size + sizeof(mem_slice)) || tmp->size == size)))
     {
         tmp = tmp->next;
         if (tmp == NULL)
@@ -88,50 +88,104 @@ void *k_malloc(uint32_t size_in_bytes)
 
     // need to figure out how the loader work
     uint32_t p_size = tmp->size;
-    mem_slice *p_prev = tmp->prev;
+    //mem_slice *p_prev = tmp->prev;
     mem_slice *p_next = tmp->next;
 
     // note the line 92 contains an error discorvered by test 8
     // i should study more cases.
 
-    // mem_slice* next = ((uint32_t)tmp+size >= end || tmp->size == size) ? NULL : (mem_slice*)((uint32_t)tmp+size);
-    mem_slice *next = NULL;
-    if (tmp->size >= (size + 15))
-        next = (mem_slice *)((uint32_t)tmp + size);
-    if (tmp->size == size)
-        next = p_next;
+    /*case 1 : tmp->size > (size + sizeof(mem_slice))*/
+    if(tmp->size > (size + sizeof(mem_slice))){//p_size = tmp->size
+        if(p_next == NULL){/*si le next est egale a 0 (la fin)*/
+            /*==========================next*/
+            mem_slice *next = NULL;
+            next = (mem_slice*)((uint32_t)tmp + size);
+            next->prev = tmp;
+            next->next = p_next; //NULL
+            next->size = p_size - size;//
+            assert(next->size > sizeof(mem_slice));
+            next->is_free = true; //no need to calculate the hash here.
+            
+            /*==========================tmp*/
+            tmp->next = next;
+            tmp->size = size;
+            tmp->is_free =false;
+            tmp->hash=hash(tmp,tmp->size);
+            /*==========================*/
 
-    // tmp
-    tmp->is_free = false;
-    tmp->size = size;
-    tmp->next = next;
-    tmp->prev = p_prev;
-
-    if (next && next != p_next)
-    {
-        next->is_free = true;
-        next->size = p_size - size;
-        next->prev = tmp;
-        next->next = p_next;
-        // next->hash=hash(next,next->size);
-    }
-    if (p_next && next)
-    {
-        if (p_next != next)
+        }else{//p_next is not null.
+            mem_slice *next = NULL;
+            next = (mem_slice*)((uint32_t)tmp + size);
+            /*==========================p_next*/
+            assert(p_next->is_free == false);
             p_next->prev = next;
+            /*==========================next*/
+            next->prev = tmp;
+            next->next = p_next;
+            next->is_free = true;
+            next->size =  p_size - size;
+            assert(next->size > sizeof(mem_slice));
+            /*==========================tmp*/
+            tmp->next = next;
+            tmp->is_free = false;
+            tmp->size = size;
+            tmp->hash=hash(tmp,tmp->size); 
+        }
+    }else{/*case 1 : tmp->size == size*/
+        tmp->is_free = false;
+        tmp->hash = hash(tmp,size); // try the case 2 alloc cover all the size and see it the linked list is correct.
+        if(p_next) assert(p_next->is_free == false);
     }
-    // im not sure if this correct
-    tmp->hash = hash(tmp, tmp->size);
-    return (void *)tmp + 14;
+
+    return (void *)tmp + sizeof(mem_slice);
+
+
+    // mem_slice* next = ((uint32_t)tmp+size >= end || tmp->size == size) ? NULL : (mem_slice*)((uint32_t)tmp+size);
+    // mem_slice *next = NULL;
+    // if (tmp->size >= (size + 15))
+    //     next = (mem_slice *)((uint32_t)tmp + size);
+    // if (tmp->size == size)
+    //     next = p_next;
+
+    // // tmp
+    // tmp->is_free = false;
+    // tmp->size = size;
+    // tmp->next = next;
+    // tmp->prev = p_prev;
+
+    // if (next && next != p_next)
+    // {
+    //     next->is_free = true;
+    //     next->size = p_size - size;
+    //     next->prev = tmp;
+    //     next->next = p_next;
+    //     // next->hash=hash(next,next->size);
+    // }
+    // if (p_next && next)
+    // {
+    //     if (p_next != next)
+    //         p_next->prev = next;
+    // }
+    // // im not sure if this correct
+    // tmp->hash = hash(tmp, tmp->size);
+    // return (void *)tmp + 14;
 }
 
 void k_free(void *ptr)
 {
     // add asserts to make sure paramss are ok.
     // assert que elle est vraiement not free ...
-    mem_slice *f_slice = (mem_slice *)((uint32_t)ptr - 14);
+    mem_slice *f_slice = (mem_slice *)((uint32_t)ptr - sizeof(mem_slice));
     assert(f_slice->hash == hash(f_slice, f_slice->size));
     assert(f_slice->is_free == false);
+
+
+    //here start the code rewrite//
+
+
+
+
+
     uint8_t state_next = 0, state_prev = 0;
     mem_slice *next = f_slice->next;
     mem_slice *prev = f_slice->prev;
@@ -260,10 +314,11 @@ void print_linked()
     mem_slice *tmp = memory_head;
     while (tmp != NULL)
     {
-        k_print("ptr:0x%x,size:0x%x,next:0x%x,prev:0x%x,isfree:0x0000000%x\n", (uint32_t)tmp,
+        k_print("ptr:0x%x,size:0x%x,next:0x%x,prev:0x%x,next:0x%x,isfree:0x0000000%x\n", (uint32_t)tmp,
                 (uint32_t)tmp->size,
                 (uint32_t)tmp->next,
                 (uint32_t)tmp->prev,
+                (uint32_t)tmp->next,
                 (uint8_t)tmp->is_free);
         tmp = tmp->next;
     }
@@ -404,6 +459,22 @@ void allocator_test_10()
 
 // need to write more tests to make sure there is no memort leak.
 
+
+void allocator_test_11(){
+
+    void* p = k_malloc((end-start)/2 - sizeof(mem_slice));
+    assert(p!=NULL);
+    void* p1 = k_malloc((end-start)/2 - sizeof(mem_slice));
+    assert(p!=NULL);
+    k_free(p);
+    p = k_malloc((end-start)/2 - sizeof(mem_slice) - 15);
+    assert(p!=NULL);
+    k_free(p);
+    k_free(p1);
+}
+
+
+
 void memory_allocator_tests()
 {
     // mem_slice* tmp=memory_head;
@@ -418,5 +489,14 @@ void memory_allocator_tests()
     allocator_test_8();
     allocator_test_9();
     allocator_test_10();
+    allocator_test_11();
+
 }
+
+
+
+
 // todo added the hash type shit and need to figure out how to update it.
+
+
+//need to cover more testcases.

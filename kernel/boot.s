@@ -17,6 +17,9 @@
     .long CHECKSUM
 
 
+.extern p_actif
+.extern p_next
+
 .section .bss
     .align 16
     stack_bottom:
@@ -260,3 +263,43 @@ inb:
 
 
 
+.global ctx_sw
+ctx_sw:
+    pushl %eax
+    movl $p_actif,%eax
+    movl (%eax),%eax
+    popl (%eax)
+    movl %ebx,4(%eax)
+    movl %ecx,8(%eax)
+    movl %edx,12(%eax)
+    movl %esi,16(%eax)
+    movl %edi,20(%eax)
+    movl %ebp,24(%eax)
+    movl %esp,28(%eax)
+
+    movl $p_next,%eax
+    movl (%eax),%eax
+    movl 28(%eax),%esp
+    movl 24(%eax),%ebp
+    movl 20(%eax),%edi
+    movl 16(%eax),%esi
+    movl 12(%eax),%edx
+    movl 8(%eax),%ecx
+    movl 4(%eax),%ebx
+    movl 0(%eax),%eax
+    ret
+    
+
+
+
+/*
+ * regs 
+ * eax
+ * ebx
+ * ecx
+ * edx
+ * esi
+ * edi
+ * ebp
+ * esp  
+*/

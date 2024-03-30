@@ -389,6 +389,101 @@ void k_print(char* s,...){
     return;
 }
 
+
+/*======================================================================================================*/
+#define MAX_PROC_NUM 30
+typedef enum state{
+    actif,
+    activable
+}state;
+
+typedef struct process{
+    uint32_t reg[8];
+    char name[8];
+    uint32_t id;
+    state etat;
+    uint32_t prio;
+    
+}__attribute((packed)) process;
+
+
+/*
+ * eax
+ * ebx
+ * ecx
+ * edx
+ * esi
+ * edi
+ * ebp
+ * esp  
+*/
+
+process* p_actif = (void*)0;
+process* p_next = (void*)0;
+void k_strcpy(char* dst,char* src){
+    while(*src != '\0'){
+        *dst++ = *src++;
+    }
+}
+
+process* table_process[MAX_PROC_NUM] ={0};
+/*
+ * processes goes from 0 to MAX_PROC_NUM.
+ */
+
+uint32_t get_proc_id(){
+    for(int i=0; i< MAX_PROC_NUM; i++){
+        if(table_process[i] == (process*)0) return i;
+    }
+    return -1;
+}
+
+int start(void(*function)(void),uint32_t prio, char* name){
+    uint32_t id=0, stack_size = 512, esp=0;
+    if( (id = get_proc_id()) == -1) return id;
+    process* new_proc = k_malloc(sizeof(process));
+    k_strcpy(new_proc->name,name);
+    new_proc->id = id;
+    new_proc->prio = prio;
+
+    uint32_t* stack = k_malloc(stack_size);
+    esp = (uint32_t)stack + stack_size -1;
+    new_proc->reg[7]=esp;
+    new_proc->etat = activable;
+    *(uint32_t*)esp = (uint32_t)function;
+    table_process[id] = new_proc;
+    return id;
+}
+
+void proc(void){
+    k_print("[%s]hi, its me\n",p_actif->name);
+    p_next = table_process[0];
+    p_actif = table_process[1];
+    ctx_sw();
+}
+
+void idle(void){
+    start(proc,0,"proc_1");
+    start(proc,0,"proc_2");
+    int a=3;
+    p_next = table_process[1];
+    ctx_sw();
+    k_print("[%s]i got the hand back\n",p_actif->name);
+    a++;
+    k_print("a=%d \n",a);
+    while(1);
+}
+
+
+
+void __init__proc(void){
+    uint32_t id = start(idle,1,"idle");
+    assert(id == 0);
+    table_process[id]->etat = actif;
+    p_actif = table_process[id];
+}
+
+/*========================================================================================================*/
 uint32_t j = 0;
 void kernel_main(){
     clear_screen();
@@ -396,11 +491,14 @@ void kernel_main(){
     // TODO : initialize the PIC device
     set_idt();   
     initialize_pic();
+
     //sti();
     //get_to_user_space();
     //div_0();
     __init__();
-    memory_allocator_tests();
+    __init__proc();
+    idle();
+
     while(1){
         halt(); 
     }

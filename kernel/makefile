@@ -14,3 +14,8 @@ mem.o: mem.c
 
 clean:
 	rm -rf *.o *.bin
+
+run:
+	qemu-system-i386 -kernel kernel.bin -M q35
+debug:
+	qemu-system-i386 -kernel kernel.bin -M q35 -s -S
