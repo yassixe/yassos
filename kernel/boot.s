@@ -266,7 +266,7 @@ inb:
 .global ctx_sw
 ctx_sw:
     pushl %eax
-    movl $p_actif,%eax
+    movl $p_prev,%eax
     movl (%eax),%eax
     popl (%eax)
     movl %ebx,4(%eax)
@@ -277,7 +277,7 @@ ctx_sw:
     movl %ebp,24(%eax)
     movl %esp,28(%eax)
 
-    movl $p_next,%eax
+    movl $p_actif,%eax
     movl (%eax),%eax
     movl 28(%eax),%esp
     movl 24(%eax),%ebp

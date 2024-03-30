@@ -130,6 +130,85 @@ void io_wait(void)
     outb(0x80, 0);
 }
 
+
+
+/*===============================================================================================*/
+
+typedef struct link{
+    struct link* next;
+    struct link* prev;
+}__attribute__((packed))link;
+
+
+#define __init__link__(name) link name = {&name,&name};
+
+
+#define __get__struct__(ptr_link,type,link_field) (type*)((void*)ptr_link  -  (void*)&((type*)0)->link_field)
+
+
+#define __add__link__(head,ptr_elem,type,link_field,prio_field) \
+    do \
+    {  \
+        link* tmp = (link*)head;\
+        type* element = (type*)ptr_elem;\
+        link* ptr_link = (link*)(&(element->link_field));\
+        tmp = tmp->next;\
+        assert(ptr_link->next == (void*)0 && ptr_link->prev == (void*)0);\
+        while (tmp != head &&  ((__get__struct__(tmp,type,link_field))->prio_field < element->prio_field))\
+        {\
+            tmp=tmp->next;\
+        }\
+        ptr_link->next = tmp;\
+        ptr_link->prev = tmp->prev;\
+        tmp->prev->next = ptr_link;\
+        tmp->prev = ptr_link;\
+    } while (0);
+    
+static __inline__ int queue_empty(link *head)
+{
+	return (head->next == head);
+}
+
+
+/**
+ * Retrait de l'�l�ment prioritaire de la file
+ * head      : pointeur vers la t�te de liste
+ * type      : type de l'�l�ment � retourner par r�f�rence
+ * listfield : nom du champ du lien de chainage
+ * retourne un pointeur de type 'type' vers l'�l�ment sortant
+ */
+#define queue_out(head, type, listfield) \
+	(type *)__queue_out(head, (unsigned long)(&((type *)0)->listfield))
+
+/**
+ * Fonction � usage interne utilis�e par la macro ci-dessus
+ * head : pointeur vers la t�te de liste
+ * diff : diff�rence entre l'adresse d'un �l�ment et son champ de
+ *        type 'link' (cf macro list_entry)
+ */
+static __inline__ void *__queue_out(link *head, unsigned long diff)
+{
+	// On r�cup�re un pointeur vers le maillon
+	// du dernier �l�ment de la file.
+	unsigned long ptr_link_ret = (unsigned long)(head->prev);
+
+	// Si la file est vide, on retourne le pointeur NULL.
+	if (queue_empty(head))
+		return ((void *)0);
+
+	// Sinon on retire l'�l�ment de la liste,
+	head->prev = head->prev->prev;
+	head->prev->next = head;
+
+	((link *)ptr_link_ret)->prev = 0;
+	((link *)ptr_link_ret)->next = 0;
+
+	// Et on retourne un pointeur vers cet �l�ment.
+	return ((void *)(ptr_link_ret - diff));
+}
+
+
+
 void write_char(char c){
     if(c == '\n'){
         pos_x = 0;
@@ -403,7 +482,7 @@ typedef struct process{
     uint32_t id;
     state etat;
     uint32_t prio;
-    
+    link a_link;
 }__attribute((packed)) process;
 
 
@@ -418,8 +497,13 @@ typedef struct process{
  * esp  
 */
 
+
+
+
+__init__link__(activable_link)
+
 process* p_actif = (void*)0;
-process* p_next = (void*)0;
+process* p_prev = (void*)0;
 void k_strcpy(char* dst,char* src){
     while(*src != '\0'){
         *dst++ = *src++;
@@ -438,6 +522,23 @@ uint32_t get_proc_id(){
     return -1;
 }
 
+
+
+void add_activable_process(process* p){
+    p->etat = activable;
+    __add__link__((&activable_link),p,process,a_link,prio);
+}
+
+
+void scheduler(){
+    p_prev = p_actif;
+    add_activable_process(p_actif);
+    p_actif = queue_out((&activable_link),process,a_link);
+    p_actif->etat =actif;
+    ctx_sw();
+}
+
+
 int start(void(*function)(void),uint32_t prio, char* name){
     uint32_t id=0, stack_size = 512, esp=0;
     if( (id = get_proc_id()) == -1) return id;
@@ -449,39 +550,56 @@ int start(void(*function)(void),uint32_t prio, char* name){
     uint32_t* stack = k_malloc(stack_size);
     esp = (uint32_t)stack + stack_size -1;
     new_proc->reg[7]=esp;
-    new_proc->etat = activable;
+    add_activable_process(new_proc);
     *(uint32_t*)esp = (uint32_t)function;
     table_process[id] = new_proc;
+    scheduler();
     return id;
 }
 
 void proc(void){
-    k_print("[%s]hi, its me\n",p_actif->name);
-    p_next = table_process[0];
-    p_actif = table_process[1];
-    ctx_sw();
+    for(int i =0; i<5; i++){
+        k_print("[%s] hi my state is %x\n",p_actif->name,p_actif->etat);
+        scheduler();
+    }
+    while(1);
 }
 
 void idle(void){
     start(proc,0,"proc_1");
-    start(proc,0,"proc_2");
-    int a=3;
-    p_next = table_process[1];
-    ctx_sw();
-    k_print("[%s]i got the hand back\n",p_actif->name);
-    a++;
-    k_print("a=%d \n",a);
+    for(int i =0; i<5; i++){
+        k_print("[%s] hi my state is %x\n",p_actif->name,p_actif->etat);
+        scheduler();
+    }
     while(1);
 }
 
 
 
 void __init__proc(void){
-    uint32_t id = start(idle,1,"idle");
+    uint32_t id=0, stack_size = 512, esp=0;
+    if( (id = get_proc_id()) == -1) return;
     assert(id == 0);
-    table_process[id]->etat = actif;
-    p_actif = table_process[id];
+    process* new_proc = k_malloc(sizeof(process));
+    k_strcpy(new_proc->name,"idle");
+    new_proc->id = id;
+    new_proc->prio = 0;
+
+    uint32_t* stack = k_malloc(stack_size);
+    esp = (uint32_t)stack + stack_size -1;
+    new_proc->reg[7]=esp;
+    new_proc->etat = actif;
+    *(uint32_t*)esp = (uint32_t)idle;
+    table_process[id] = new_proc;
+    p_actif = new_proc;
+    idle();
 }
+
+
+/*
+ * i have p_actif and p_next and table_process need to be updated.
+ */
+
 
 /*========================================================================================================*/
 uint32_t j = 0;
@@ -497,8 +615,7 @@ void kernel_main(){
     //div_0();
     __init__();
     __init__proc();
-    idle();
-
+    k_print("there is an error\n");
     while(1){
         halt(); 
     }
@@ -538,3 +655,14 @@ void kernel_main(){
 //the new process get the regs from its struct and set the kernel esp too(i think from its struct).
 //then do the ret and jump back to after the scheduller.
 //do get to the interrupt handler where it should send end of interrupt and do the iret.
+
+
+
+/*
+ * todo need to verify that the context switch keep the register unchanged.
+ */
+
+
+/*
+ * write a tool to show the memory state.s
+ */
