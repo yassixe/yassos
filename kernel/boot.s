@@ -45,14 +45,18 @@ label:
 1:	hlt
 	jmp 1b
 
-.global halt
-halt:
+.global hlt
+hlt:
     hlt
     ret
 
 .global sti
 sti:
     sti
+    ret
+.global cli
+cli:
+    cli
     ret
 
 .global load_gdt

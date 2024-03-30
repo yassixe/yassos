@@ -41,6 +41,9 @@
 // }
 
 
+uint32_t tiks = 0;
+uint32_t seconds = 0;
+
 typedef struct gdt_entry{
     uint16_t limit_1;
     uint16_t base_1;
@@ -108,11 +111,12 @@ uint8_t slave_pic_mask=0;
 //---------------------------------------------
 //      functions   
 //---------------------------------------------
-void halt(void);
-void sti(void);
+
 void load_gdt(gdt_desciptor* gdt_d);
 void load_idt(idt_desciptor* idt_d);
 void handler(registers* regs);
+typedef void (*irq_handler)(registers* regs);
+irq_handler irq_handler_table[16]={0};
 void get_to_user_space(void);
 void load_tss(void);
 uint8_t inb(uint16_t port);
@@ -133,6 +137,29 @@ void io_wait(void)
 
 
 /*===============================================================================================*/
+
+void register_irq_handler(int irq_number,irq_handler handler){
+    assert((irq_number >= 0) && (irq_number < 16));
+    irq_handler_table[irq_number] = handler;
+    return;
+}
+#define FREQ 50
+#define DEFAULT_FREQ 0x1234DD //Hz (environ 1,19 MHz)
+void change_freq(){
+    outb(0x43,0x34); //command to change the frequence 0x43 is the command port
+    uint16_t value = (uint16_t)(DEFAULT_FREQ/FREQ);
+    outb(0x40,(uint8_t)value);
+    outb(0x40,(uint8_t)(value>>8));
+    return; 
+}
+
+void timer_handler(registers* regs){
+    ++tiks;
+    if(tiks == 50) {
+        k_print("second %x\n",++seconds);
+        tiks =0;
+    }
+}
 
 typedef struct link{
     struct link* next;
@@ -312,8 +339,7 @@ void initialize_pic(){
     master_pic_mask = 0xff;
     slave_pic_mask = 0xff;
 
-    unmask_irq(0);
-
+    //unmask_irq(0);
 }
 
 void set_gdt(){
@@ -393,14 +419,14 @@ void set_idt(){
 void handler(registers* reg){
     uint8_t interrupt_number = reg->interrupt_number;
     if(interrupt_number < 32){
-        print_s("exceptions\n");
+        k_print("exceptions %x\n",interrupt_number);
         //while(1) halt();
     }
     else if(interrupt_number < 48){
         uint8_t irq = interrupt_number - 32;
-        (void)irq;
-        print_s("irq\n");
         send_end_of_interrupt(irq);
+        irq_handler_table[irq](reg);
+        //we send the eof and we go to the handler im not sure if that will cause problem, for schudilling i think its necessary
     }
 }
 
@@ -601,6 +627,13 @@ void __init__proc(void){
  */
 
 
+void initialize_irq(){
+    register_irq_handler(0,timer_handler);
+    unmask_irq(0);
+    change_freq();
+    
+}
+
 /*========================================================================================================*/
 uint32_t j = 0;
 void kernel_main(){
@@ -609,15 +642,16 @@ void kernel_main(){
     // TODO : initialize the PIC device
     set_idt();   
     initialize_pic();
-
-    //sti();
+    initialize_irq();
+    sti();
+    while(1);
     //get_to_user_space();
     //div_0();
     __init__();
     __init__proc();
     k_print("there is an error\n");
     while(1){
-        halt(); 
+        hlt(); 
     }
 }
 

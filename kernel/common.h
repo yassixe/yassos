@@ -20,6 +20,9 @@ void k_print(char* s,...);
 void *k_malloc(uint32_t size_in_bytes);
 void k_free(void *ptr);
 void ctx_sw(void);
+void cli(void);
+void sti(void);
+void hlt(void);
 
 #define assert(expr) \
                     do\
