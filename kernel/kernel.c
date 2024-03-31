@@ -135,7 +135,7 @@ void io_wait(void)
 }
 
 
-
+void scheduler(void);
 /*===============================================================================================*/
 
 void register_irq_handler(int irq_number,irq_handler handler){
@@ -159,6 +159,7 @@ void timer_handler(registers* regs){
         k_print("second %x\n",++seconds);
         tiks =0;
     }
+    scheduler();
 }
 
 typedef struct link{
@@ -557,6 +558,7 @@ void add_activable_process(process* p){
 
 
 void scheduler(){
+    if(p_actif == (void*)0) return;
     p_prev = p_actif;
     add_activable_process(p_actif);
     p_actif = queue_out((&activable_link),process,a_link);
@@ -583,22 +585,27 @@ int start(void(*function)(void),uint32_t prio, char* name){
     return id;
 }
 
-void proc(void){
-    for(int i =0; i<5; i++){
-        k_print("[%s] hi my state is %x\n",p_actif->name,p_actif->etat);
-        scheduler();
+
+
+void proc(void) {
+    for (;;) {
+        k_print("[%s]\n", p_actif->name);
+        sti();
+        hlt();
+        cli();
     }
-    while(1);
+}
+void idle(void)
+{
+    start(proc,0,"proc_1");
+    for (;;) {
+        k_print("[%s]\n", p_actif->name);
+        sti();
+        hlt();
+        cli();
+    }
 }
 
-void idle(void){
-    start(proc,0,"proc_1");
-    for(int i =0; i<5; i++){
-        k_print("[%s] hi my state is %x\n",p_actif->name,p_actif->etat);
-        scheduler();
-    }
-    while(1);
-}
 
 
 
@@ -643,13 +650,13 @@ void kernel_main(){
     set_idt();   
     initialize_pic();
     initialize_irq();
-    sti();
-    while(1);
+    //sti();
     //get_to_user_space();
     //div_0();
     __init__();
     __init__proc();
-    k_print("there is an error\n");
+    //k_print("there is an error\n");
+    while(1);
     while(1){
         hlt(); 
     }
