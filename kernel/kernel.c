@@ -42,7 +42,7 @@
 
 
 uint32_t tiks = 0;
-uint32_t seconds = 0;
+
 
 typedef struct gdt_entry{
     uint16_t limit_1;
@@ -153,12 +153,23 @@ void change_freq(){
     return; 
 }
 
+
+void print_time(){
+    uint32_t tmp_x = pos_x;
+    uint32_t tmp_y = pos_y;
+    pos_x = 70;
+    pos_y = 0;
+    uint32_t seconds = (tiks/50)%60;
+    uint32_t minutes = (tiks/50)/60;
+    k_print("%d :%d ",minutes,seconds);
+    pos_x = tmp_x;
+    pos_y = tmp_y;
+}
+
 void timer_handler(registers* regs){
     ++tiks;
-    if(tiks == 50) {
-        k_print("second %x\n",++seconds);
-        tiks =0;
-    }
+    //k_print("hi");
+    print_time();
     scheduler();
 }
 
@@ -458,6 +469,9 @@ void print_atoi_16(int num){
     print_s((char*)(num_tab+i));
 }
 
+
+
+
 void k_print(char* s,...){
     va_list params;
     va_start(params,s);
@@ -478,12 +492,14 @@ void k_print(char* s,...){
                 s++;
                 int num = va_arg(params,int);
                 print_atoi_10(num);
+                break;
             } 
             case 'x':
             {
                 s++;
                 int num = va_arg(params,int);
                 print_atoi_16(num);
+                break;
             }          
             default:
                 break;
@@ -500,7 +516,8 @@ void k_print(char* s,...){
 #define MAX_PROC_NUM 30
 typedef enum state{
     actif,
-    activable
+    activable,
+    endormi
 }state;
 
 typedef struct process{
@@ -510,6 +527,7 @@ typedef struct process{
     state etat;
     uint32_t prio;
     link a_link;
+    uint32_t rev;
 }__attribute((packed)) process;
 
 
@@ -528,6 +546,7 @@ typedef struct process{
 
 
 __init__link__(activable_link)
+__init__link__(endormi_link)
 
 process* p_actif = (void*)0;
 process* p_prev = (void*)0;
@@ -558,14 +577,34 @@ void add_activable_process(process* p){
 
 
 void scheduler(){
+    //if there is an endormi process that his time came, add it to activable
+
+    for(;;){
+        process* proc= queue_out((&endormi_link),process,a_link);
+        if (proc == (void*)0) break;
+        else if ((-1*(proc->rev)) > tiks) {
+            __add__link__((&endormi_link),proc,process,a_link,rev);
+            break;
+        }
+        add_activable_process(proc);
+    }
+
     if(p_actif == (void*)0) return;
     p_prev = p_actif;
-    add_activable_process(p_actif);
+    if(p_prev->etat == actif) add_activable_process(p_prev);
     p_actif = queue_out((&activable_link),process,a_link);
     p_actif->etat =actif;
     ctx_sw();
 }
 
+
+void wait_clock(uint32_t clock){
+    assert(clock>0);
+    p_actif->etat = endormi;
+    p_actif->rev = -1*(tiks+clock);
+    __add__link__((&endormi_link),p_actif,process,a_link,rev);
+    scheduler();
+}
 
 int start(void(*function)(void),uint32_t prio, char* name){
     uint32_t id=0, stack_size = 512, esp=0;
@@ -574,7 +613,7 @@ int start(void(*function)(void),uint32_t prio, char* name){
     k_strcpy(new_proc->name,name);
     new_proc->id = id;
     new_proc->prio = prio;
-
+    new_proc->rev = 0;
     uint32_t* stack = k_malloc(stack_size);
     esp = (uint32_t)stack + stack_size -1;
     new_proc->reg[7]=esp;
@@ -585,21 +624,27 @@ int start(void(*function)(void),uint32_t prio, char* name){
     return id;
 }
 
+uint32_t mon_pid(){
+    return p_actif->id;
+}
+char* mon_nom(){
+    return p_actif->name;
+}
 
+#define SEC_TO_TIKS 50
 
 void proc(void) {
     for (;;) {
         k_print("[%s]\n", p_actif->name);
-        sti();
-        hlt();
-        cli();
+        wait_clock(SEC_TO_TIKS*2);
     }
 }
 void idle(void)
 {
     start(proc,0,"proc_1");
+    start(proc,0,"proc_2");
     for (;;) {
-        k_print("[%s]\n", p_actif->name);
+        //k_print("[%s]\n", p_actif->name);
         sti();
         hlt();
         cli();
@@ -650,6 +695,7 @@ void kernel_main(){
     set_idt();   
     initialize_pic();
     initialize_irq();
+    //k_print("%d ",4);
     //sti();
     //get_to_user_space();
     //div_0();
