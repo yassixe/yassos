@@ -531,11 +531,14 @@ typedef enum state{
 typedef struct process{
     uint32_t reg[8];
     char name[8];
-    uint32_t id;
+    int id;
     state etat;
     uint32_t prio;
     link a_link;
     uint32_t rev;
+    struct process* parent;
+    link* child_head;
+    link  child_link;
 }__attribute((packed)) process;
 
 
@@ -625,6 +628,7 @@ int start(void* function,uint32_t prio, char* name,void* arg){
     if( (id = get_proc_id()) == -1) return id;
     process* new_proc = k_malloc(sizeof(process));
     k_strcpy(new_proc->name,name);
+    k_print("%d",id);
     new_proc->id = id;
     new_proc->prio = prio;
     new_proc->rev = 0;
@@ -637,11 +641,19 @@ int start(void* function,uint32_t prio, char* name,void* arg){
     *(uint32_t*)(top_stack)=(uint32_t)arg;
     *(uint32_t*)esp = (uint32_t)function;
     table_process[id] = new_proc;
+
+    /*child stuff*/
+    new_proc->parent = p_actif;
+
+    __init__link__(head);
+    new_proc->child_head = &head;
+    __add__link__(p_actif->child_head,new_proc,process,child_link,prio);
+
     scheduler();
     return id;
 }
 
-uint32_t mon_pid(){
+int mon_pid(){
     return p_actif->id;
 }
 char* mon_nom(){
@@ -662,13 +674,17 @@ char* mon_nom(){
 //     }
 // }
 
+int waitpid(int pid, int *retvalp){
+    return 0;
+}
+
 
 void hii(){
-    k_print("[%s] ill return bye\n", p_actif->name);
+    k_print("[%s] ill return bye, state:%x\n", p_actif->name,p_actif->id);
 }
 void proc(uint32_t i) {
     //int i = 0;
-    k_print("[%s] ill sleep for 2 sec\n", p_actif->name);
+    k_print("[%s],pid:%x ill sleep for 2 sec\n", p_actif->name,p_actif->id);
     wait_clock(SEC_TO_TIKS*2);
     k_print("%d\n",i);
     hii();
@@ -676,7 +692,7 @@ void proc(uint32_t i) {
 
 void proc2(void) {
     for (;;) {
-        k_print("[%s]\n", p_actif->name);
+        k_print("[%s],pid:%x, my parent is %s\n", p_actif->name,p_actif->id,p_actif->parent->name);
         wait_clock(SEC_TO_TIKS*10);
     }
 }
@@ -684,7 +700,15 @@ void idle(void)
 {
     start(proc,1,"proc_1",(void*)99);
     start(proc2,1,"proc_2",0);
-    for (;;) {
+    // link* tmp = p_actif->child_head->next;
+    // process* tmp_proc = (void*)0;
+    while(1){
+        // while(tmp != p_actif->child_head){
+        //     tmp_proc = __get__struct__(tmp,process,child_link);
+        //     k_print("[%s] i have child %s\n",p_actif->name,tmp_proc->name);
+        //     tmp=tmp->next;
+        // }
+        // tmp = p_actif->child_head->next;
         sti();
         hlt();
         cli();
@@ -709,7 +733,10 @@ void __init__proc(void){
     new_proc->etat = actif;
     *(uint32_t*)esp = (uint32_t)idle;
     table_process[id] = new_proc;
+    __init__link__(head);
+    new_proc->child_head = &head;
     p_actif = new_proc;
+    
     idle();
 }
 
