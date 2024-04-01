@@ -42,8 +42,8 @@
 
 
 uint32_t tiks = 0;
-
-
+void assert_correct_state(void);
+void kill();
 typedef struct gdt_entry{
     uint16_t limit_1;
     uint16_t base_1;
@@ -168,6 +168,7 @@ void print_time(){
 
 void timer_handler(registers* regs){
     ++tiks;
+    assert_correct_state();
     //k_print("hi");
     print_time();
     scheduler();
@@ -470,6 +471,12 @@ void print_atoi_16(int num){
 }
 
 
+__init__link__(zombie_link)
+
+
+
+
+
 
 
 void k_print(char* s,...){
@@ -517,7 +524,8 @@ void k_print(char* s,...){
 typedef enum state{
     actif,
     activable,
-    endormi
+    endormi,
+    zombie
 }state;
 
 typedef struct process{
@@ -531,6 +539,7 @@ typedef struct process{
 }__attribute((packed)) process;
 
 
+
 /*
  * eax
  * ebx
@@ -540,7 +549,7 @@ typedef struct process{
  * edi
  * ebp
  * esp  
-*/
+ */
 
 
 
@@ -606,18 +615,26 @@ void wait_clock(uint32_t clock){
     scheduler();
 }
 
-int start(void(*function)(void),uint32_t prio, char* name){
-    uint32_t id=0, stack_size = 512, esp=0;
+void return_address(){
+    k_print("process_returned\n");
+    kill();
+}
+
+int start(void* function,uint32_t prio, char* name,void* arg){
+    uint32_t id=0, stack_size = 512, esp=0, top_stack=0;
     if( (id = get_proc_id()) == -1) return id;
     process* new_proc = k_malloc(sizeof(process));
     k_strcpy(new_proc->name,name);
     new_proc->id = id;
     new_proc->prio = prio;
     new_proc->rev = 0;
-    uint32_t* stack = k_malloc(stack_size);
-    esp = (uint32_t)stack + stack_size -1;
+    uint32_t* stack = k_malloc(stack_size+12);//after the ret the 
+    top_stack = (uint32_t)stack + stack_size +12 - 4;
+    esp = top_stack-8;
     new_proc->reg[7]=esp;
     add_activable_process(new_proc);
+    *(uint32_t*)(top_stack - 4)=(uint32_t)&return_address;
+    *(uint32_t*)(top_stack)=(uint32_t)arg;
     *(uint32_t*)esp = (uint32_t)function;
     table_process[id] = new_proc;
     scheduler();
@@ -633,18 +650,41 @@ char* mon_nom(){
 
 #define SEC_TO_TIKS 50
 
-void proc(void) {
+// void proc(void) {
+//     int i =0;
+//     for (;;) {
+//         k_print("[%s]\n", p_actif->name);
+//         wait_clock(SEC_TO_TIKS*2);
+//         if(i == 2){
+//             kill();
+//         }
+//         i++;
+//     }
+// }
+
+
+void hii(){
+    k_print("[%s] ill return bye\n", p_actif->name);
+}
+void proc(uint32_t i) {
+    //int i = 0;
+    k_print("[%s] ill sleep for 2 sec\n", p_actif->name);
+    wait_clock(SEC_TO_TIKS*2);
+    k_print("%d\n",i);
+    hii();
+}
+
+void proc2(void) {
     for (;;) {
         k_print("[%s]\n", p_actif->name);
-        wait_clock(SEC_TO_TIKS*2);
+        wait_clock(SEC_TO_TIKS*10);
     }
 }
 void idle(void)
 {
-    start(proc,0,"proc_1");
-    start(proc,0,"proc_2");
+    start(proc,1,"proc_1",(void*)99);
+    start(proc2,1,"proc_2",0);
     for (;;) {
-        //k_print("[%s]\n", p_actif->name);
         sti();
         hlt();
         cli();
@@ -686,6 +726,24 @@ void initialize_irq(){
     
 }
 
+void assert_correct_state(){
+    link* l = activable_link.next;
+    while(l != &activable_link){
+        assert(((__get__struct__(l,process,a_link))->etat) == activable);
+        l=l->next;
+    }
+    l = endormi_link.next;
+    while(l != &endormi_link){
+        assert(((__get__struct__(l,process,a_link))->etat) == endormi);
+        l=l->next;
+    }
+}
+
+void kill(){
+    p_actif->etat = zombie;
+    __add__link__((&zombie_link),p_actif,process,a_link,prio);
+    scheduler();
+}
 /*========================================================================================================*/
 uint32_t j = 0;
 void kernel_main(){
@@ -753,3 +811,9 @@ void kernel_main(){
 /*
  * write a tool to show the memory state.s
  */
+
+
+
+
+//passing arguments to processes.
+//exit and return.
