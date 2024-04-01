@@ -539,6 +539,7 @@ typedef struct process{
     struct process* parent;
     link* child_head;
     link  child_link;
+    int retval;
 }__attribute((packed)) process;
 
 
@@ -588,6 +589,16 @@ void add_activable_process(process* p){
 }
 
 
+void pr(){
+    link* tmp = activable_link.next;
+    while (tmp != &activable_link)
+    {
+        process* proc = __get__struct__(tmp,process,a_link);
+        k_print("%s->",proc->name);
+        tmp= tmp->next;
+    }
+    k_print("\n");
+}
 void scheduler(){
     //if there is an endormi process that his time came, add it to activable
 
@@ -604,6 +615,7 @@ void scheduler(){
     if(p_actif == (void*)0) return;
     p_prev = p_actif;
     if(p_prev->etat == actif) add_activable_process(p_prev);
+    //pr();
     p_actif = queue_out((&activable_link),process,a_link);
     p_actif->etat =actif;
     ctx_sw();
@@ -623,12 +635,20 @@ void return_address(){
     kill();
 }
 
+void exit_(int retval){
+    k_print("process exited\n");
+    p_actif->etat = zombie;
+    p_actif->retval = retval;
+    __add__link__((&zombie_link),p_actif,process,a_link,prio);
+    scheduler();
+}
+
 int start(void* function,uint32_t prio, char* name,void* arg){
     uint32_t id=0, stack_size = 512, esp=0, top_stack=0;
     if( (id = get_proc_id()) == -1) return id;
     process* new_proc = k_malloc(sizeof(process));
     k_strcpy(new_proc->name,name);
-    k_print("%d",id);
+    new_proc->retval = 0;
     new_proc->id = id;
     new_proc->prio = prio;
     new_proc->rev = 0;
@@ -637,7 +657,7 @@ int start(void* function,uint32_t prio, char* name,void* arg){
     esp = top_stack-8;
     new_proc->reg[7]=esp;
     add_activable_process(new_proc);
-    *(uint32_t*)(top_stack - 4)=(uint32_t)&return_address;
+    *(uint32_t*)(top_stack - 4)=(uint32_t)&exit_;
     *(uint32_t*)(top_stack)=(uint32_t)arg;
     *(uint32_t*)esp = (uint32_t)function;
     table_process[id] = new_proc;
@@ -652,6 +672,9 @@ int start(void* function,uint32_t prio, char* name,void* arg){
     scheduler();
     return id;
 }
+
+
+
 
 int mon_pid(){
     return p_actif->id;
@@ -675,31 +698,68 @@ char* mon_nom(){
 // }
 
 int waitpid(int pid, int *retvalp){
-    return 0;
+    link* tmp = p_actif->child_head->next;
+    process* tmp_proc = (void*)0;
+    process* z_proc = (void*)0;
+    if(pid<0){
+        if(queue_empty((p_actif->child_head))) return -1;
+        while(1){
+            tmp = p_actif->child_head->next;
+            while(tmp != (p_actif->child_head)){
+                tmp_proc = __get__struct__(tmp,process,child_link);
+                if(tmp_proc->etat == zombie) {
+                    z_proc = tmp_proc;
+                    break; /*need to destroy the zombie*/
+                }
+                tmp=tmp->next;
+            }
+            if(z_proc != (void*)0) break;
+            scheduler();        
+        }
+    }
+    else if(pid>0){
+        if(table_process[pid]->parent != p_actif) return -1;
+        while(1){
+            if(table_process[pid]->etat == zombie) {
+                z_proc = table_process[pid];
+                break;
+            }
+            else scheduler();
+        }  
+    }
+    assert(z_proc != (void*)0);
+    *retvalp = z_proc->retval;
+    return z_proc->id;
 }
 
 
 void hii(){
-    k_print("[%s] ill return bye, state:%x\n", p_actif->name,p_actif->id);
-}
-void proc(uint32_t i) {
-    //int i = 0;
-    k_print("[%s],pid:%x ill sleep for 2 sec\n", p_actif->name,p_actif->id);
-    wait_clock(SEC_TO_TIKS*2);
-    k_print("%d\n",i);
-    hii();
+    k_print("[%s] ill return bye, state:%d \n", p_actif->name,p_actif->id);
 }
 
-void proc2(void) {
-    for (;;) {
-        k_print("[%s],pid:%x, my parent is %s\n", p_actif->name,p_actif->id,p_actif->parent->name);
-        wait_clock(SEC_TO_TIKS*10);
-    }
+void proc2(uint32_t a) {
+    wait_clock(5*SEC_TO_TIKS);
+    k_print("[%s] receiced value : %d \n",p_actif->name,a);
+    wait_clock(5*SEC_TO_TIKS);
+    exit_(4);
 }
+
+void proc(void) {
+    //int i = 0;
+    start(proc2,0,"proc2",(void*)10);
+    int a = 0;
+    int pid=0;
+    pid = waitpid(-1,&a);
+    k_print("[%s]pid:%d,retval:%d \n",p_actif->name,pid,a);
+
+}
+
+
+
+
 void idle(void)
 {
-    start(proc,1,"proc_1",(void*)99);
-    start(proc2,1,"proc_2",0);
+    start(proc,0,"proc_1",0);
     // link* tmp = p_actif->child_head->next;
     // process* tmp_proc = (void*)0;
     while(1){
@@ -762,6 +822,11 @@ void assert_correct_state(){
     l = endormi_link.next;
     while(l != &endormi_link){
         assert(((__get__struct__(l,process,a_link))->etat) == endormi);
+        l=l->next;
+    }
+    l = zombie_link.next;
+    while(l != &zombie_link){
+        assert(((__get__struct__(l,process,a_link))->etat) == zombie);
         l=l->next;
     }
 }
